@@ -68,7 +68,7 @@ LazyScroll.prototype._disablePointerEvents = function () {
   this._scrolling = setInterval(function () {
     if (mark === self.scrollTop) {
       self.content.style.pointerEvents = ''
-      clearInterval(self.scrolling)
+      clearInterval(self._scrolling)
       delete self._scrolling
     } else {
       mark = self.scrollTop

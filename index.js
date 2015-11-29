@@ -123,12 +123,14 @@ LazyScroll.prototype.update = function () {
   this._updateRequested = false
 }
 
-LazyScroll.prototype.hide = function () {
+LazyScroll.prototype.hide =
+LazyScroll.prototype.detachedCallback = function () {
   this._hidden = true
   this.removeEventListener('scroll', this._onscroll)
   for (var i in this.items) {
     var item = this.items[i]
     if (item.hide) item.hide()
+    delete this.items[i]
   }
 }
 

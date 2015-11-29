@@ -48,10 +48,12 @@ Object.defineProperty(LazyScroll.prototype, 'direction', {
       case 'vertical':
         this._dimension = 'height'
         this._offsetSize = 'offsetHeight'
+        this._translate = 'translateY'
         break
       case 'horizontal':
         this._dimension = 'width'
         this._offsetSize = 'offsetWidth'
+        this._translate = 'translateX'
         break
       default:
         throw new Error('must be vertical or horizontal')
@@ -108,7 +110,7 @@ LazyScroll.prototype.update = function () {
   while (i < end) {
     if (!existing[i]) {
       item = items[i] = this.itemAtIndex(i)
-      item.style.transform = 'translateY(' + (itemSize * i + 'px') + ')'
+      item.style.transform = this._translate + '(' + (itemSize * i + 'px') + ')'
       content.appendChild(item)
       if (item.show) item.show()
     }

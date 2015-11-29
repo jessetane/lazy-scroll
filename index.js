@@ -22,13 +22,13 @@ LazyScroll.prototype.createdCallback = function () {
   this.addEventListener('scroll', this._onscroll)
 
   function onscroll () {
-    if (this._updateRequested) return
-    this._updateRequested = true
+    if (self._updateRequested) return
+    self._updateRequested = true
 
     // pointer events can kill scrolling perf
     // so we disable them while scrolling
-    if (this._scrolling === undefined) {
-      this._disablePointerEvents()
+    if (self._scrolling === undefined) {
+      self._disablePointerEvents()
     }
 
     window.requestAnimationFrame(update)

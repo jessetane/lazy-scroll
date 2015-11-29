@@ -1,6 +1,6 @@
 {
   "name": "lazy-scroll",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A web component based on iOS's UITableView",
   "repository": "https://github.com/jessetane/lazy-scroll",
   "author": "Jesse Tane <jesse.tane@gmail.com>",

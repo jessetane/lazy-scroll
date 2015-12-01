@@ -147,15 +147,24 @@ LazyScroll.prototype.update = function () {
   this._updateRequested = false
 }
 
+LazyScroll.prototype.clear = function () {
+  var content = this.content
+  var items = this._items
+  var len = items.length
+  var i = -1
+  while (++i < len) {
+    var item = items[i][1]
+    if (item.hide) item.hide()
+    content.removeChild(item)
+  }
+  this._items = []
+}
+
 LazyScroll.prototype.hide =
 LazyScroll.prototype.detachedCallback = function () {
   this._hidden = true
   this.removeEventListener('scroll', this._onscroll)
-  for (var i in this.items) {
-    var item = this.items[i]
-    if (item.hide) item.hide()
-    delete this.items[i]
-  }
+  this.clear()
 }
 
 module.exports = document.registerElement('x-lazy-scroll', LazyScroll)

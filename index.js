@@ -15,7 +15,7 @@ LazyScroll.prototype.createdCallback = function () {
   }
 
   var self = this
-  this._items = {}
+  this._items = []
   this._updateRequested = false
   this._onscroll = onscroll
 
@@ -79,49 +79,71 @@ LazyScroll.prototype._disablePointerEvents = function () {
 LazyScroll.prototype.update = function () {
   if (this._hidden) return
 
-  var scrollTop = this.scrollTop
   var content = this.content
   var itemCount = this.itemCount
   var itemSize = this.itemSize
   var size = itemCount * itemSize
-  var start = Math.floor(scrollTop / itemSize) - this.overflow
-  var end = Math.floor((scrollTop + this[this._offsetSize]) / itemSize) + this.overflow
-  var items = this._items
-  var existing = {}
-  var i, n, item
 
-  if (start < 0) start = 0
-  if (end >= itemCount) end = itemCount - 1
-
-  for (i in items) {
-    item = items[i]
-    n = parseInt(i, 10)
-    if (n < start || n > end) {
-      if (item.hide) item.hide()
-      content.removeChild(item)
-      delete items[i]
-    } else {
-      existing[i] = true
-    }
-  }
-
-  end++
-  i = start
-  while (i < end) {
-    if (!existing[i]) {
-      item = items[i] = this.itemAtIndex(i)
-      item.style.transform = this._translate + '(' + (itemSize * i + 'px') + ')'
-      content.appendChild(item)
-      if (item.show) item.show()
-    }
-    i++
-  }
-
+  // update content size
   if (this._lastSize !== size) {
     this._lastSize = size
     content.style[this._dimension] = size + 'px'
   }
 
+  // clamp start / end
+  var scrollTop = this.scrollTop
+  var start = Math.floor(scrollTop / itemSize) - this.overflow
+  var end = Math.floor((scrollTop + this[this._offsetSize]) / itemSize) + this.overflow
+  if (start < 0) start = 0
+  if (end >= itemCount) end = itemCount - 1
+
+  // remove old items
+  var existing = this._items
+  var len = existing.length
+  var tmp = []
+  var i = -1
+  while (++i < len) {
+    var item = existing[i]
+    var index = item[0]
+    if (index < start || index > end) {
+      item = item[1]
+      if (item.hide) item.hide()
+      content.removeChild(item)
+    } else {
+      tmp[tmp.length] = item
+    }
+  }
+  existing = tmp
+
+  // add new items
+  len = existing.length
+  tmp = []
+  end++
+  i = start
+  while (i < end) {
+    var n = -1
+    while (++n < len) {
+      item = existing[n]
+      index = item[0]
+      if (index === i || index > i) break
+    }
+    if (index > i || n === len) {
+      var newItem = this.itemAtIndex(i)
+      newItem.style.transform = this._translate + '(' + (itemSize * i + 'px') + ')'
+      if (n === len) {
+        content.appendChild(newItem)
+      } else {
+        content.insertBefore(newItem, item[1])
+      }
+      if (newItem.show) newItem.show()
+      tmp[tmp.length] = [ i, newItem ]
+    } else {
+      tmp[tmp.length] = item
+    }
+    i++
+  }
+
+  this._items = tmp
   this._updateRequested = false
 }
 

@@ -3,39 +3,34 @@ var LazyScroll = {
 }
 
 LazyScroll.prototype.createdCallback = function () {
-  this.direction = 'vertical'
-  this.itemCount = 0
-  this.itemSize = 100
-  this.overflow = 0
-  this.content = this.firstElementChild
+  var self = this
 
-  if (!this.content) {
+  this.direction = this.getAttribute('direction') || 'vertical'
+  this.itemCount = this.getAttribute('item-count') || 0
+  this.itemSize = this.getAttribute('item-size') || 100
+  this.overflow = this.getAttribute('overflow') || 0
+
+  if (this.firstElementChild) {
+    this.content = this.firstElementChild
+  } else {
     this.content = document.createElement('div')
     this.appendChild(this.content)
   }
 
-  var self = this
   this._items = []
-  this._updateRequested = false
+  this._removable = null
+  this._updateRequest = null
   this._onscroll = onscroll
+  this._doUpdate = function () {
+    self.update()
+  }
 
   this.addEventListener('scroll', this._onscroll)
 
   function onscroll () {
-    if (self._updateRequested) return
-    self._updateRequested = true
-
-    // pointer events can kill scrolling perf
-    // so we disable them while scrolling
-    if (self._scrolling === undefined) {
-      self._disablePointerEvents()
-    }
-
-    window.requestAnimationFrame(update)
-  }
-
-  function update () {
-    self.update()
+    if (self._updateRequest) return
+    if (!self._scrolling) this._watchForScrollEnd()
+    self._updateRequest = window.requestAnimationFrame(self._doUpdate)
   }
 }
 
@@ -49,11 +44,13 @@ Object.defineProperty(LazyScroll.prototype, 'direction', {
         this._dimension = 'height'
         this._offsetSize = 'offsetHeight'
         this._translate = 'translateY'
+        this._scrollStart = 'scrollTop'
         break
       case 'horizontal':
         this._dimension = 'width'
         this._offsetSize = 'offsetWidth'
         this._translate = 'translateX'
+        this._scrollStart = 'scrollLeft'
         break
       default:
         throw new Error('must be vertical or horizontal')
@@ -61,19 +58,29 @@ Object.defineProperty(LazyScroll.prototype, 'direction', {
   }
 })
 
-LazyScroll.prototype._disablePointerEvents = function () {
+LazyScroll.prototype._watchForScrollEnd = function () {
   var self = this
   var mark = this.scrollTop
-  this.content.style.pointerEvents = 'none'
+  this.dispatchEvent(new Event('scrollstart'))
   this._scrolling = setInterval(function () {
     if (mark === self.scrollTop) {
-      self.content.style.pointerEvents = ''
       clearInterval(self._scrolling)
+      var content = self.content
+      var removable = self._removable
+      if (removable) {
+        self._items = self._items.filter(function (item) {
+          if (!removable[item._lazyIndex]) return true
+          if (item.hide) item.hide()
+          content.removeChild(item)
+        })
+        self._removable = null
+      }
       delete self._scrolling
+      self.dispatchEvent(new Event('scrollend'))
     } else {
       mark = self.scrollTop
     }
-  }, 100)
+  }, 250)
 }
 
 LazyScroll.prototype.update = function () {
@@ -91,76 +98,72 @@ LazyScroll.prototype.update = function () {
   }
 
   // clamp start / end
-  var scrollTop = this.scrollTop
-  var start = Math.floor(scrollTop / itemSize) - this.overflow
-  var end = Math.floor((scrollTop + this[this._offsetSize]) / itemSize) + this.overflow
+  var scrollStart = this[this._scrollStart]
+  var start = Math.floor(scrollStart / itemSize) - this.overflow
+  var end = Math.floor((scrollStart + this[this._offsetSize]) / itemSize) + this.overflow
   if (start < 0) start = 0
   if (end >= itemCount) end = itemCount - 1
 
-  // remove old items
-  var existing = this._items
-  var len = existing.length
-  var tmp = []
-  var i = -1
-  while (++i < len) {
-    var item = existing[i]
-    var index = item[0]
-    if (index < start || index > end) {
-      item = item[1]
-      if (item.hide) item.hide()
-      content.removeChild(item)
-    } else {
-      tmp[tmp.length] = item
-    }
-  }
-  existing = tmp
-
-  // add new items
-  len = existing.length
-  tmp = []
-  end++
-  i = start
-  while (i < end) {
-    var n = -1
-    while (++n < len) {
-      item = existing[n]
-      index = item[0]
-      if (index === i || index > i) break
-    }
-    if (index > i || n === len) {
-      var newItem = this.itemAtIndex(i)
-      newItem.style.transform = this._translate + '(' + (itemSize * i + 'px') + ')'
-      if (n === len) {
-        content.appendChild(newItem)
-      } else {
-        content.insertBefore(newItem, item[1])
-      }
-      if (newItem.show) newItem.show()
-      tmp[tmp.length] = [ i, newItem ]
-    } else {
-      tmp[tmp.length] = item
-    }
-    i++
-  }
-
-  this._items = tmp
-  this._updateRequested = false
-}
-
-LazyScroll.prototype.clear = function () {
-  var content = this.content
+  // find removable items
+  var existing = {}
+  var removable = {}
+  var before = []
+  var after = []
   var items = this._items
   var len = items.length
   var i = -1
   while (++i < len) {
-    var item = items[i][1]
-    if (item.hide) item.hide()
-    content.removeChild(item)
+    var item = items[i]
+    var index = item._lazyIndex
+    existing[index] = item
+    if (index < start) {
+      before[before.length] = item
+      removable[index] = item
+    } else if (index > end) {
+      after[after.length] = item
+      removable[index] = item
+    }
   }
-  this._items = []
+
+  // add missing items
+  var current = []
+  var nextSibling = after.length ? after[0] : null
+  var translate = this._translate + '('
+  var n = 0
+  i = end
+  start--
+  while (i > start) {
+    item = existing[i]
+    if (!item) {
+      item = this.itemAtIndex(i)
+      item._lazyIndex = i
+      item.style.transform = translate + itemSize * i + 'px)'
+      if (nextSibling) {
+        content.insertBefore(item, nextSibling)
+      } else {
+        content.appendChild(item)
+      }
+      if (item.show) item.show()
+    }
+    nextSibling = current[n] = item
+    n++
+    i--
+  }
+
+  this._removable = removable
+  this._items = before.concat(current).concat(after)
+  this._updateRequest = null
 }
 
-LazyScroll.prototype.hide =
+LazyScroll.prototype.clear = function () {
+  var content = this.content
+  this._removable = null
+  this._items = this._items.filter(function (item) {
+    if (item.hide) item.hide()
+    content.removeChild(item)
+  })
+}
+
 LazyScroll.prototype.detachedCallback = function () {
   this._hidden = true
   this.removeEventListener('scroll', this._onscroll)

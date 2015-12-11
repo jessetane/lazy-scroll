@@ -24,7 +24,7 @@ MyScroller.prototype.createdCallback = function () {
   LazyScroll.prototype.createdCallback.call(this)
   this.direction = 'vertical' // vertical|horizontal
   this.itemCount = 100        // the number of items in your list
-  this.itemSize = 50          // the height of each item
+  this.itemSize = 50          // the size of each item
   this.overflow = 0           // the number of items to buffer offscreen
   this.update()
 }

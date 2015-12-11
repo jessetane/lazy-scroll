@@ -38,5 +38,9 @@ MyScroller.prototype.itemAtIndex = function (index) {
 document.registerElement('my-scroller', MyScroller)
 ```
 
+## Releases
+* 2.x
+  * Most browsers have figured out how to deal with pointer-events by now, so just emit scroll{start,end} events instead of disabling them explicitly.
+
 ## License
 WTFPL

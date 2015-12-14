@@ -9,6 +9,7 @@ LazyScroll.prototype.createdCallback = function () {
   this.itemCount = this.getAttribute('item-count') || 0
   this.itemSize = this.getAttribute('item-size') || 100
   this.overflow = this.getAttribute('overflow') || 0
+  this.deferRemoval = !!this.getAttribute('defer-removal') // work around for desktop safari bug
 
   if (this.firstElementChild) {
     this.content = this.firstElementChild
@@ -65,18 +66,20 @@ LazyScroll.prototype._watchForScrollEnd = function () {
   this._scrolling = setInterval(function () {
     if (mark === self.scrollTop) {
       clearInterval(self._scrolling)
-      var content = self.content
-      var removable = self._removable
-      if (removable) {
-        self._items = self._items.filter(function (item) {
-          if (!removable[item._lazyIndex]) return true
-          if (item.hide) item.hide()
-          content.removeChild(item)
-        })
-        self._removable = null
-      }
-      delete self._scrolling
       self.dispatchEvent(new Event('scrollend'))
+      if (this.deferRemoval) {
+        var content = self.content
+        var removable = self._removable
+        if (removable) {
+          self._items = self._items.filter(function (item) {
+            if (!removable[item.lazyIndex]) return true
+            if (item.hide) item.hide()
+            content.removeChild(item)
+          })
+          self._removable = null
+        }
+        delete self._scrolling
+      }
     } else {
       mark = self.scrollTop
     }
@@ -114,19 +117,27 @@ LazyScroll.prototype.update = function () {
   var i = -1
   while (++i < len) {
     var item = items[i]
-    var index = item._lazyIndex
-    existing[index] = item
-    if (index < start) {
-      before[before.length] = item
-      removable[index] = item
-    } else if (index > end) {
-      after[after.length] = item
-      removable[index] = item
+    var index = item.lazyIndex
+    if (this.deferRemoval) {
+      existing[index] = item
+      if (index < start) {
+        before[before.length] = item
+        removable[index] = item
+      } else if (index > end) {
+        after[after.length] = item
+        removable[index] = item
+      }
+    } else {
+      if (index < start || index > end) {
+        content.removeChild(item)
+      } else {
+        existing[index] = item
+      }
     }
   }
 
   // add missing items
-  var current = []
+  var visible = []
   var nextSibling = after.length ? after[0] : null
   var translate = this._translate + '('
   var n = 0
@@ -136,28 +147,30 @@ LazyScroll.prototype.update = function () {
     item = existing[i]
     if (!item) {
       item = this.itemAtIndex(i)
-      item._lazyIndex = i
+      item.lazyIndex = i
       item.style.transform = translate + itemSize * i + 'px)'
       if (nextSibling) {
         content.insertBefore(item, nextSibling)
       } else {
         content.appendChild(item)
       }
-      if (item.show) item.show()
     }
-    nextSibling = current[n] = item
+    if (item.show) item.show()
+    nextSibling = visible[n] = item
     n++
     i--
   }
 
   this._removable = removable
-  this._items = before.concat(current).concat(after)
+  this._visible = visible
+  this._items = this.deferRemoval ? before.concat(visible).concat(after) : visible
   this._updateRequest = null
 }
 
 LazyScroll.prototype.clear = function () {
   var content = this.content
   this._removable = null
+  this._visible = null
   this._items = this._items.filter(function (item) {
     if (item.hide) item.hide()
     content.removeChild(item)

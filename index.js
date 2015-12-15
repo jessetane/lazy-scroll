@@ -67,7 +67,7 @@ LazyScroll.prototype._watchForScrollEnd = function () {
     if (mark === self.scrollTop) {
       clearInterval(self._scrolling)
       self.dispatchEvent(new Event('scrollend'))
-      if (this.deferRemoval) {
+      if (self.deferRemoval) {
         var content = self.content
         var removable = self._removable
         if (removable) {

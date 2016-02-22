@@ -3,8 +3,6 @@ var LazyScroll = {
 }
 
 LazyScroll.prototype.createdCallback = function () {
-  var self = this
-
   this.direction = this.getAttribute('direction') || 'vertical'
   this.itemCount = this.getAttribute('item-count') || 0
   this.itemSize = this.getAttribute('item-size') || 100
@@ -20,19 +18,10 @@ LazyScroll.prototype.createdCallback = function () {
 
   this._items = []
   this._removable = null
-  this._updateRequest = null
-  this._onscroll = onscroll
-  this._doUpdate = function () {
-    self.update()
-  }
-
+  this._onenterFrame = this._onenterFrame.bind(this)
+  this._onscrollEnd = this._onscrollEnd.bind(this)
+  this._onscroll = this._onscroll.bind(this)
   this.addEventListener('scroll', this._onscroll)
-
-  function onscroll () {
-    if (self._updateRequest) return
-    if (!self._scrolling) this._watchForScrollEnd()
-    self._updateRequest = window.requestAnimationFrame(self._doUpdate)
-  }
 }
 
 Object.defineProperty(LazyScroll.prototype, 'direction', {
@@ -59,36 +48,51 @@ Object.defineProperty(LazyScroll.prototype, 'direction', {
   }
 })
 
-LazyScroll.prototype._watchForScrollEnd = function () {
-  var self = this
-  var mark = this.scrollTop
+LazyScroll.prototype._onscroll = function () {
+  this.removeEventListener('scroll', this._onscroll)
   this.dispatchEvent(new Event('scrollstart'))
-  this._scrolling = setInterval(function () {
-    if (mark === self.scrollTop) {
-      clearInterval(self._scrolling)
-      delete self._scrolling
-      if (self.deferRemoval) {
-        var content = self.content
-        var removable = self._removable
-        if (removable) {
-          self._items = self._items.filter(function (item) {
-            if (!removable[item.lazyIndex]) return true
-            if (item.hide) item.hide()
-            content.removeChild(item)
-          })
-          self._removable = null
-        }
-      }
-      self.dispatchEvent(new Event('scrollend'))
+  this._onenterFrame()
+}
+
+LazyScroll.prototype._onenterFrame = function () {
+  if (this._hidden) return
+  var scroll = this[this._scrollStart]
+  if (this._lastScroll === scroll) {
+    if (!this._debounce) {
+      this._debounce = 1
+    } else if (this._debounce < 10) {
+      this._debounce++
     } else {
-      mark = self.scrollTop
+      this._onscrollEnd()
+      return
     }
-  }, 250)
+  } else {
+    this._debounce = 0
+    this._lastScroll = scroll
+    this.update()
+  }
+  requestAnimationFrame(this._onenterFrame)
+}
+
+LazyScroll.prototype._onscrollEnd = function () {
+  delete this._lastScroll
+  if (this.deferRemoval) {
+    var content = this.content
+    var removable = this._removable
+    if (removable) {
+      this._items = this._items.filter(function (item) {
+        if (!removable[item.lazyIndex]) return true
+        if (item.hide) item.hide()
+        content.removeChild(item)
+      })
+      this._removable = null
+    }
+  }
+  this.dispatchEvent(new Event('scrollend'))
+  this.addEventListener('scroll', this._onscroll)
 }
 
 LazyScroll.prototype.update = function () {
-  if (this._hidden) return
-
   var content = this.content
   var itemCount = this.itemCount
   var itemSize = this.itemSize
@@ -164,7 +168,6 @@ LazyScroll.prototype.update = function () {
   this._removable = removable
   this._visible = visible
   this._items = this.deferRemoval ? before.concat(visible).concat(after) : visible
-  this._updateRequest = null
 }
 
 LazyScroll.prototype.clear = function () {
